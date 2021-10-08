@@ -1,5 +1,5 @@
 # Binaries for programs and plugins
-release-payload-controller
+/release-payload-controller
 genswaggertypedocs
 *.exe
 *.dll

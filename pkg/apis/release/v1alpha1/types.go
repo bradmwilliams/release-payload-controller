@@ -45,6 +45,29 @@ import (
 //   6) Launches: 4.9.0-0.nightly-2021-09-27-105859-aggregated-<name>-aggregator
 //   7) Launches: 4.9.0-0.nightly-2021-09-27-105859-<name>
 //
+// Mapping from a Release to ReleasePayload:
+// A ReleasePayload will always be named after the Release that it corresponds to, with the addition of a
+// random string suffix.  Both objects will reside in the same namespace.
+//   For a release: `ocp/release:4.9.0-0.nightly-2021-09-27-105859`
+//   A corresponding ReleasePayload will exist: `ocp/4.9.0-0.nightly-2021-09-27-105859-<random-string>`
+//
+// Mapping from ReleasePayload to Release:
+// A ReleasePayload is decorated with a couple labels that will point back to the Release that it corresponds to:
+//   - release.openshift.io/imagestream=release
+//   - release.openshift.io/imagestreamtag-name=4.9.0-0.nightly-2021-09-27-105859
+// Because the ReleasePayload and the Release will both reside in the same namespace, the release that created the
+// ReleasePayload will be located here:
+//   <namespace>/<release.openshift.io/imagestream>:<release.openshift.io/imagestreamtag-name>
+// Similarly, the ReleasePayload object itself also has the PayloadCoordinates (.spec.payloadCoordinates) that point
+// back to the Release as well:
+//   spec:
+//     payloadCoordinates:
+//       imagestreamName: release
+//       imagestreamTagName: 4.9.0-0.nightly-2021-09-27-105859
+//       namespace: ocp
+// The release that created the ReleasePayload will be located here:
+//   <namespace>/<imagestreamName>:<imagestreamTagName>
+//
 // Compatibility level 4: No compatibility is provided, the API can change at any point for any reason. These capabilities should not be used by applications needing long term support.
 // +openshift:compatibility-gen:level=4
 type ReleasePayload struct {
@@ -60,8 +83,8 @@ type ReleasePayload struct {
 
 // ReleasePayloadSpec has the information to represent a ReleasePayload
 type ReleasePayloadSpec struct {
-	PayloadCoordinates      PayloadCoordinates `json:"payloadCoordinates,omitempty"`
-	ForceAcceptanceOverride AcceptanceOverride `json:"forceAcceptanceOverride,omitempty"`
+	PayloadCoordinates PayloadCoordinates     `json:"payloadCoordinates,omitempty"`
+	PayloadOverride    ReleasePayloadOverride `json:"payloadOverride,omitempty"`
 }
 
 // PayloadCoordinates houses the information pointing to the location of the imagesteamtag that this ReleasePayload
@@ -89,14 +112,30 @@ type PayloadCoordinates struct {
 	ImagestreamTagName string `json:"imagestreamTagName,omitempty"`
 }
 
-// AcceptanceOverride houses the required information to force the manual Acceptance of a ReleasePayload.
-// ART, rarely, needs the ability to manually accept a Release that, for some reason or another, won't pass one or
-// more of it's blocking jobs.
-// This would be the only scenario where another party, besides the release-controller, would update a
+type ReleasePayloadOverrideType string
+
+// These are the supported ReleasePayloadOverride values.
+const (
+	// ReleasePayloadOverrideAccepted enables the manual Acceptance of a ReleasePayload.
+	ReleasePayloadOverrideAccepted ReleasePayloadOverrideType = "Accepted"
+
+	// ReleasePayloadOverrideRejected enables the manual Rejection of a ReleasePayload.
+	ReleasePayloadOverrideRejected ReleasePayloadOverrideType = "Rejected"
+)
+
+// ReleasePayloadOverride provides the ability to manually Accept/Reject a ReleasePayload
+// ART, occasionally, needs the ability to manually accept/reject a Release that, for some reason or another:
+//   - won't pass one or more of it's blocking jobs.
+//   - shouldn't proceed with the normal release verification processing
+// This would be the one scenario where another party, besides the release-controller, would update a
 // ReleasePayload instance.  Upon doing so, the release-controller should see that an update occurred and make all
-// the necessary changes to formally accept the respective release.
-type AcceptanceOverride struct {
-	// Reason is a human-readable string that specifies the reason for manually accepting a ReleasePayload
+// the necessary changes to formally accept/reject the respective release.
+type ReleasePayloadOverride struct {
+	// Override specifies the ReleasePayloadOverride to apply to the ReleasePayload
+	Override ReleasePayloadOverrideType `json:"override"`
+
+	// Reason is a human-readable string that specifies the reason for manually overriding the
+	// Acceptance/Rejections of a ReleasePayload
 	Reason string `json:"reason"`
 }
 
